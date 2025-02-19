@@ -26,7 +26,7 @@ db.connect(config, (err) => {
   if (err) {
     console.log("Connection Error", err);
   } else {
-    console.log("Connected API E-BMD");
+    console.log("Connected API E-BLUD");
   }
 });
 /*End of Test the Connection */
