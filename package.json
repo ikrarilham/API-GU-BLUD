@@ -4,16 +4,17 @@
   "description": "Dummy Integration between E-BMD and SIPD, build with express and SQL Server",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon app.js"
   },
   "keywords": [
     "backend",
     "service",
     "server",
     "integration",
-    "ebmd"
+    "eblud"
   ],
-  "author": "Adriel",
+  "author": "Ikrar",
   "license": "ISC",
   "dependencies": {
     "aws-sdk": "^2.1337.0",

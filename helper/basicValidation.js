@@ -20,6 +20,8 @@ const basicValidation = (req, res, next) => {
     return res.status(403).send({
       message: "invalid request_id",
     });
+  } else {
+    req.userAuth = userAuthEncoded;
   }
   /** end of validation condition */
   next();
