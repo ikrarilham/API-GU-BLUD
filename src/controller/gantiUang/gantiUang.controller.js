@@ -40,12 +40,12 @@ const gantiUangController = {
     gantiUangModel
       .inquiry({ idbilling })
       .then((result) => {
+        //console.log("inquiry", result);
         const customJsonData = result.data.map((row) => ({
           idbilling: row.idbilling,
           Kdstatus: row.Kdstatus,
           Nobukti: row.Nobukti,
           Tgl_posting: row.Tgl_posting,
-          Tgl_bayar: row.Tgl_bayar,
           SKPD: row.SKPD,
           Dari: row.Dari,
           Nama: row.Nama,
@@ -59,7 +59,9 @@ const gantiUangController = {
           NPWP: row.NPWP,
           No_Rek: row.No_Rek,
           Nama_Bank: row.Nama_Bank,
+          No_Telp: row.No_Telp,
           Keterangan: row.Keterangan,
+          Rek_Debet: row.Rek_Debet,
           IsRekanan: row.IsRekanan,
           NoDokumen: row.NoDokumen,
           TglDokumen: row.TglDokumen,
@@ -67,11 +69,11 @@ const gantiUangController = {
         }));
 
         const customJsonRekeningList = result.rekening_list.map((row) => ({
-          Kepada: row.Kepada,
+          Kepada: row.NamaRekTujuan,
           kodebank: row.kodebank,
-          Kodeswift: row.Kodeswift,
           Nama_bank: row.Nama_bank,
-          norekening: row.norekening,
+          Kodeswift: row.Kodeswift,
+          No_Rek: row.No_Rek,
           Nominal: formatDecimal(row.Nominal),
         }));
 
@@ -112,7 +114,7 @@ const gantiUangController = {
   },
 
   // ==================== POSTING ====================
-  posting: (req, res) => {
+  /*posting: (req, res) => {
     const { request_id, idbilling } = req.body;
     //const year = req.headers["year"];
 
@@ -132,6 +134,28 @@ const gantiUangController = {
           responseCode: err.responseCode || "99",
           responseMessage: err.responseMessage || "Failed",
           //request_id: request_id || null,
+          message: err.message,
+        });
+      });
+  },*/
+  // ==================== POSTING ====================
+  posting: (req, res) => {
+    const { request_id, idbilling, tgltransaksi, kodeTransaksi } = req.body;
+
+    gantiUangModel
+      .posting({ idbilling, request_id, tgltransaksi, kodeTransaksi })
+      .then((result) => {
+        console.log("posting", result);
+        res.status(200).send({
+          responseCode: result.responseCode,
+          responseMessage: result.responseMessage,
+          message: result.message,
+        });
+      })
+      .catch((err) => {
+        res.status(500).send({
+          responseCode: err.responseCode || "99",
+          responseMessage: err.responseMessage || "Failed",
           message: err.message,
         });
       });

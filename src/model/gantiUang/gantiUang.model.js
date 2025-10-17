@@ -44,7 +44,7 @@ const gantiUangModel = {
       return {
         responseCode: "00",
         responseMessage: "Success",
-        message: `Ada ${result.recordset.length} S-PD dalam antrian. IdBilling-nya disajikan di data.`,
+        message: `Ada ${result.recordset.length} Transaksi GU dalam antrian. IdBilling-nya disajikan di data.`,
         data: [
           {
             idbilling: idbillingList,
@@ -68,6 +68,7 @@ const gantiUangModel = {
     const config = connectDatabase();
     try {
       await db.connect(config);
+      console.log("🟢 DB connected, idbilling:", idbilling);
 
       const request = new db.Request();
       request.input("idbilling", db.VarChar, idbilling);
@@ -75,6 +76,7 @@ const gantiUangModel = {
       const result = await request.query(
         `SELECT * FROM [dbo].[F_TU_GU_FOR_BANK](@idbilling)`
       );
+      console.log("✅ Result dari F_TU_GU_FOR_BANK:", result.recordset?.length);
 
       if (!result.recordset || result.recordset.length === 0) {
         db.close();
@@ -87,13 +89,23 @@ const gantiUangModel = {
       }
 
       const rekeningResult = await request.query(`
-        SELECT Kepada, kodebank, '000' AS Kodeswift, BankTujuan AS Nama_bank, norekening, a.Pengeluaran AS Nominal  
-        FROM Tu_BukuBank_temp a WHERE a.idbilling = @idbilling
+        SELECT 
+            a.NamaRekeningTujuan AS NamaRekTujuan, 
+            a.KodeBankTujuan AS kodebank,
+            a.BankTujuan AS Nama_bank,
+            ISNULL(b.kdswift,'') AS Kodeswift,   -- ambil dari tabel gnr_kode_bank
+            a.NoRekeningTujuan AS No_Rek,
+            a.Pengeluaran AS Nominal
+        FROM Tu_BukuBank_temp a
+        LEFT JOIN gnr_kode_bank b ON a.KodeBankTujuan = b.kode   -- relasi antar tabel
+        WHERE a.idbilling = @idbilling;
       `);
+      console.log("✅ Rekening list:", rekeningResult.recordset?.length);
 
       const pajakResult = await request.query(`
         SELECT * FROM [dbo].[F_TU_PAJAK_GU_FOR_BANK] (@idbilling)
       `);
+      console.log("✅ Pajak list:", pajakResult.recordset?.length);
 
       db.close();
       return {
@@ -105,6 +117,7 @@ const gantiUangModel = {
         pajak_list: pajakResult.recordset,
       };
     } catch (err) {
+      console.error("❌ ERROR di inquiry():", err.message);
       db.close();
       return {
         responseCode: "99",
@@ -116,7 +129,7 @@ const gantiUangModel = {
   },
 
   // ==================== POSTING ====================
-  posting: async ({ idbilling, request_id }) => {
+  /*posting: async ({ idbilling, request_id }) => {
     const config = connectDatabase();
     try {
       await db.connect(config);
@@ -147,8 +160,68 @@ const gantiUangModel = {
       return {
         responseCode: "00",
         responseMessage: "Success",
-        message: `Transaksi GU dengan idbilling ${idbilling} berhasil diposting.`,
+        message: `OK.`,
         data: { request_id, idbilling },
+      };
+    } catch (err) {
+      db.close();
+      return {
+        responseCode: "99",
+        responseMessage: "Query posting gagal",
+        message: err.message,
+        data: [],
+      };
+    }
+  },*/
+  // ==================== POSTING ====================
+  posting: async ({ idbilling, request_id, tgltransaksi, kodeTransaksi }) => {
+    const config = connectDatabase();
+    try {
+      await db.connect(config);
+
+      const request = new db.Request();
+      request.input("idBill", db.VarChar(50), idbilling);
+
+      // Cek apakah idbilling ada
+      const checkQuery = `SELECT 1 FROM Tu_BukuBank_temp WHERE idbilling = @idBill`;
+      const checkResult = await request.query(checkQuery);
+
+      if (!checkResult.recordset || checkResult.recordset.length === 0) {
+        db.close();
+        return {
+          responseCode: "99",
+          responseMessage: "Data tidak ditemukan",
+          message: `IdBilling ${idbilling} tidak ditemukan.`,
+          data: [],
+        };
+      }
+
+      // Jika tanggalcair dikirim, update dulu ke tabel temp
+      if (tgltransaksi && tgltransaksi.trim() !== "") {
+        const updateNote = new db.Request();
+        updateNote.input("idBill", db.VarChar(50), idbilling);
+        updateNote.input("TanggalCair", db.VarChar(500), tgltransaksi);
+        await updateNote.query(`
+        UPDATE Tu_BukuBank_temp 
+        SET tanggal_cair = @TanggalCair 
+        WHERE idbilling = @idBill
+      `);
+      }
+
+      // Eksekusi SP
+      //await request.execute("SP_BkBankExec_GU");
+
+      // Jalankan stored procedure
+      const spRequest = new db.Request();
+      spRequest.input("idBill", db.VarChar(50), idbilling);
+      await spRequest.execute("SP_BkBankExec_GU");
+
+      db.close();
+      return {
+        responseCode: "00",
+        responseMessage: "Success",
+        message: "OK",
+        data: { request_id, idbilling, tgltransaksi, kodeTransaksi },
       };
     } catch (err) {
       db.close();
@@ -161,6 +234,7 @@ const gantiUangModel = {
     }
   },
 
+  // ==================== REVERSAL ====================
   reversal: async ({ idbilling, tgltrx, note }) => {
     const config = connectDatabase(); // tidak perlu 'year' lagi
 
@@ -181,7 +255,6 @@ const gantiUangModel = {
         response_description:
           result.recordset?.[0]?.response_message || "Success",
         message: result.recordset?.[0]?.message || "OK",
-        data: result.recordset,
       };
     } catch (err) {
       db.close();

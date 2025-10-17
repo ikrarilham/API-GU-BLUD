@@ -32,6 +32,18 @@ app.get("*", (req, res) => {
   });
 });
 
+// 🔹 Tambahkan ini juga (error handler JSON)
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && "body" in err) {
+    console.log("❌ Invalid JSON dari Bank:", err.message);
+    return res.status(400).json({
+      responseCode: "99",
+      responseMessage: "Invalid JSON format",
+      message: "Body request tidak sesuai format JSON",
+    });
+  }
+  next();
+});
 app.listen(port, () => {
   console.log(`API Test successfully running on port ${port}`);
 });

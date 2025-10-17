@@ -8,8 +8,8 @@ const signatureValidation = (req, res, next) => {
   const reqSignature = req.headers["x-signature"];
   const instansiId = req.headers["x-instansiid"];
   const requestBody = req.body.request_id;
-  const kodeBilling = req.body.kode_billing || ""; // bisa undefined
-  const kodeBillingPajak = req.body.kode_billing_pajak || "";
+  const kodeBilling = req.body.idbilling || ""; // bisa undefined
+  const kodeBillingPajak = req.body.idbilling || "";
   const timeStamp = req.headers["x-timestamp"];
   const path = req.originalUrl.toLowerCase();
   /*** End of Variable that used in Signature encode */
@@ -18,6 +18,13 @@ const signatureValidation = (req, res, next) => {
   /*** create signature based on req */
   //const signature =
   //kodeDaerah + "|" + instansiId + "|" + requestBody + "|" + timeStamp;
+  if (!/^\d+$/.test(req.body.request_id)) {
+    console.warn(" request_id tidak valid (bukan angka):", req.body.request_id);
+    return res.status(400).send({
+      message: "Invalid request_id format",
+      received: req.body.request_id,
+    });
+  }
 
   let signature = "";
   if (path.includes("/getbilling")) {
@@ -47,8 +54,31 @@ const signatureValidation = (req, res, next) => {
     .digest("base64");
   /*** End of create signature based on req */
   /*** Condition for the req permission based on Signature req */
-  // console.log("Signature API", signatureSHA);
-  // console.log("Signature API", req.headers);
+  console.log("Signature API", signatureSHA);
+  console.log("Signature API", req.headers);
+
+  // === Tambahkan log debug untuk compare ===
+  console.log("=============================================");
+  console.log(" SIGNATURE VALIDATION DEBUG LOG");
+  console.log("---------------------------------------------");
+  console.log(" Path Endpoint     :", path);
+  console.log(" Timestamp Header  :", timeStamp);
+  console.log(" Instansi ID       :", instansiId);
+  console.log(" Request ID        :", requestBody);
+  console.log(" idbilling      :", kodeBilling);
+  console.log(" StringToSign (API):", signature);
+  console.log(
+    "🔑 Secret Key (ENV)  :",
+    SECRETKEYHMACSHA256 ? "[OK]" : "[MISSING]"
+  );
+  console.log(" Signature (API)   :", signatureSHA);
+  console.log(" Signature (Bank)  :", reqSignature);
+  console.log(
+    signatureSHA === reqSignature
+      ? " Signature MATCH — Valid"
+      : " Signature MISMATCH — Invalid"
+  );
+  console.log("=============================================");
   if (reqSignature != signatureSHA) {
     return res.status(403).send({
       message: "Invalid Signature",
@@ -57,8 +87,8 @@ const signatureValidation = (req, res, next) => {
     req.contentType = contentType;
     req.signature = signatureSHA;
     req.kodeDaerah = kodeDaerah;
-    req.kodeBilling = kodeBilling;
-    req.kodeBillingPajak = kodeBillingPajak;
+    req.idbilling = kodeBilling;
+    req.idbilling = kodeBillingPajak;
     req.instansiId = instansiId;
     req.requestBody = requestBody;
     req.timeStamp = timeStamp;
