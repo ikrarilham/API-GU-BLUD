@@ -1,41 +1,49 @@
-/** Import dotenv */
 require("dotenv").config();
 
-/** ENV Value Setting */
 const { API_PORT, ORIGIN, METHODS, ALLOWEDHEADERS, CREDENTIALS } = process.env;
 
-/** Import model */
-const { urlencoded, json } = require("express");
 const express = require("express");
 const app = express();
 const router = require("./src/route/index.route");
 const cors = require("cors");
-const bodyParser = require("body-parser");
+
 const port = API_PORT || 5002;
 
-/** Use the Modules */
-/*** Preperation for CORS specific setting */
 const corsOption = {
   origin: ORIGIN,
-  method: METHODS,
+  methods: METHODS,
   allowedHeaders: ALLOWEDHEADERS,
-  credential: CREDENTIALS,
+  credentials: CREDENTIALS === "true", // jika string "true" di env
 };
-/*** end of preperation for CORS specific setting */
-app.use(cors()); /** enable CORS */
-app.use(bodyParser.json());
-app.use(express.static("public")); /** static file */
-app.use(urlencoded({ extended: true })); /** enable urlencoded */
-app.use(json()); /** enable json */
-app.use("/api/v1/", router); /** default prefix we use */
+
+app.use(cors(corsOption));
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+app.use(express.static("public"));
+
+app.use("/api/v1", router);
 
 app.get("*", (req, res) => {
-  return res.send({
+  return res.status(404).json({
     status: 404,
-    message: "not found",
+    message: "Not found",
   });
 });
 
-app.listen(port, (req, res) => {
-  return `API Test successfully running on port ${port}`;
+// 🔹 Tambahkan ini juga (error handler JSON)
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && "body" in err) {
+    console.log("❌ Invalid JSON dari Bank:", err.message);
+    return res.status(400).json({
+      responseCode: "99",
+      responseMessage: "Invalid JSON format",
+      message: "Body request tidak sesuai format JSON",
+    });
+  }
+  next();
+});
+app.listen(port, () => {
+  console.log(`API Test successfully running on port ${port}`);
 });
