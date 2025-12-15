@@ -18,8 +18,17 @@ const signatureValidation = (req, res, next) => {
   /*** create signature based on req */
   //const signature =
   //kodeDaerah + "|" + instansiId + "|" + requestBody + "|" + timeStamp;
+
+  try {
+    console.log(
+      "RAW REQUEST BODY (as received):",
+      JSON.stringify(req.body, null, 2)
+    );
+  } catch (e) {
+    console.log("Gagal stringify request body", e.message);
+  }
   if (!/^\d+$/.test(req.body.request_id)) {
-    console.warn(" request_id tidak valid (bukan angka):", req.body.request_id);
+    console.warn(" request_id tidak valid :", req.body.request_id);
     return res.status(400).send({
       message: "Invalid request_id format",
       received: req.body.request_id,
@@ -54,8 +63,8 @@ const signatureValidation = (req, res, next) => {
     .digest("base64");
   /*** End of create signature based on req */
   /*** Condition for the req permission based on Signature req */
-  console.log("Signature API", signatureSHA);
-  console.log("Signature API", req.headers);
+  //console.log("Signature API", signatureSHA);
+  //console.log("Signature API", req.headers);
 
   // === Tambahkan log debug untuk compare ===
   console.log("=============================================");
@@ -68,7 +77,7 @@ const signatureValidation = (req, res, next) => {
   console.log(" idbilling      :", kodeBilling);
   console.log(" StringToSign (API):", signature);
   console.log(
-    "🔑 Secret Key (ENV)  :",
+    " Secret Key (ENV)  :",
     SECRETKEYHMACSHA256 ? "[OK]" : "[MISSING]"
   );
   console.log(" Signature (API)   :", signatureSHA);

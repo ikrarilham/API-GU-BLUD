@@ -25,6 +25,8 @@ app.use(express.static("public"));
 
 app.use("/api/v1", router);
 
+//app.use("/servicegu/namarsud", router);
+
 app.get("*", (req, res) => {
   return res.status(404).json({
     status: 404,

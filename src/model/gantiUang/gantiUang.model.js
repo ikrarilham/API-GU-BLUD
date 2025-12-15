@@ -21,7 +21,7 @@ const gantiUangModel = {
         a.idbilling AS idbilling,
         a.Nobukti AS noBukti
       FROM Tu_BukuBank_temp a
-      WHERE ISNULL(a.idbilling, '') <> ''
+      WHERE ISNULL(a.idbilling, '') <> '' AND a.StatusCairBank = '004'
     `;
 
       const result = await request.query(query);
@@ -62,13 +62,77 @@ const gantiUangModel = {
       };
     }
   },
+  // ==================== LIST BILLING ====================
+  /*getBilling: async ({ request_id, data1, data2 }) => {
+    const config = connectDatabase();
+    let pool;
+
+    try {
+      pool = await db.connect(config);
+
+      const results1 = [];
+      const results2 = [];
+
+      // === PROSES DATA1 ===
+      if (Array.isArray(data1) && data1.length > 0) {
+        for (const item of data1) {
+          const query = `
+          SELECT 
+            a.idbilling AS idbilling,
+            a.Nobukti AS noBukti
+          FROM Tu_BukuBank_temp a
+          WHERE a.idbilling = @idbilling
+        `;
+          const request = pool.request();
+          request.input("idbilling", db.VarChar(50), item.idbilling);
+          const result = await request.query(query);
+          if (result.recordset.length > 0) results1.push(result.recordset[0]);
+        }
+      }
+
+      // === PROSES DATA2 ===
+      if (Array.isArray(data2) && data2.length > 0) {
+        for (const item of data2) {
+          const query = `
+          SELECT 
+            a.idbilling AS idbilling,
+            a.Nobukti AS noBukti
+          FROM Tu_BukuBank_temp a
+          WHERE a.idbilling = @idbilling
+        `;
+          const request = pool.request();
+          request.input("idbilling", db.VarChar(50), item.idbilling);
+          const result = await request.query(query);
+          if (result.recordset.length > 0) results2.push(result.recordset[0]);
+        }
+      }
+
+      return {
+        responseCode: "00",
+        responseMessage: "Success",
+        message: `${results1.length + results2.length} data ditemukan`,
+        data1: results1,
+        data2: results2,
+      };
+    } catch (err) {
+      return {
+        responseCode: "99",
+        responseMessage: "Error",
+        message: err.message,
+        data1: [],
+        data2: [],
+      };
+    } finally {
+      if (pool) pool.close();
+    }
+  },*/
 
   // ==================== INQUIRY ====================
   inquiry: async ({ idbilling }) => {
     const config = connectDatabase();
     try {
       await db.connect(config);
-      console.log("🟢 DB connected, idbilling:", idbilling);
+      console.log("<> DB connected, idbilling:", idbilling);
 
       const request = new db.Request();
       request.input("idbilling", db.VarChar, idbilling);
@@ -82,8 +146,8 @@ const gantiUangModel = {
         db.close();
         return {
           responseCode: "99",
-          responseMessage: "ID Billing tidak ditemukan",
-          message: `Tidak ada transaksi GU untuk idbilling ${idbilling}`,
+          responseMessage: "Failed",
+          message: `ID Billing tidak ditemukan ${idbilling}`,
           data: [],
         };
       }
@@ -93,13 +157,26 @@ const gantiUangModel = {
             a.NamaRekeningTujuan AS NamaRekTujuan, 
             a.KodeBankTujuan AS kodebank,
             a.BankTujuan AS Nama_bank,
-            ISNULL(b.kdswift,'') AS Kodeswift,   -- ambil dari tabel gnr_kode_bank
+            ISNULL(b.kdswift,'') AS Kodeswift,
             a.NoRekeningTujuan AS No_Rek,
-            a.Pengeluaran AS Nominal
+            (a.Pengeluaran - ROUND(SUM(ISNULL(p.Pengeluaran,0)),0)) AS Nominal,
+            a.StatusCairBank,
+            a.Tanggal_Cair
         FROM Tu_BukuBank_temp a
-        LEFT JOIN gnr_kode_bank b ON a.KodeBankTujuan = b.kode   -- relasi antar tabel
-        WHERE a.idbilling = @idbilling;
+        LEFT JOIN tu_bukupajak_temp p ON p.idreff = a.id
+        LEFT JOIN gnr_kode_bank b ON a.KodeBankTujuan = b.kode
+        WHERE a.idbilling = @idbilling
+        GROUP BY 
+            a.NamaRekeningTujuan,
+            a.KodeBankTujuan,
+            a.BankTujuan,
+            b.kdswift,
+            a.NoRekeningTujuan,
+            a.Pengeluaran,
+            a.StatusCairBank,
+            a.Tanggal_Cair;
       `);
+
       console.log("✅ Rekening list:", rekeningResult.recordset?.length);
 
       const pajakResult = await request.query(`
@@ -107,11 +184,31 @@ const gantiUangModel = {
       `);
       console.log("✅ Pajak list:", pajakResult.recordset?.length);
 
+      // ==================== CEK STATUS TRANSAKSI ====================
+      let responseCode = "00";
+      let responseMessage = "Success";
+      let message = `OK.`;
+
+      if (rekeningResult.recordset && rekeningResult.recordset.length > 0) {
+        const status = rekeningResult.recordset[0];
+
+        console.log(">> StatusCairBank:", status.StatusCairBank);
+        console.log(">> Tanggal_Cair:", status.Tanggal_Cair);
+
+        // ✅ Jika sudah cair (086) dan sudah ada tanggal cair
+        if (status.StatusCairBank === "086" && status.Tanggal_Cair) {
+          responseCode = "02";
+          responseMessage = "Transaksi GU Online Telah Dibayar / Lunas";
+          message = "OK.";
+        }
+      }
+
       db.close();
+
       return {
-        responseCode: "00",
-        responseMessage: "Success",
-        message: `Terdapat ${result.recordset.length} transaksi GU.`,
+        responseCode,
+        responseMessage,
+        message,
         data: result.recordset,
         rekening_list: rekeningResult.recordset,
         pajak_list: pajakResult.recordset,
